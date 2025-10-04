@@ -3,37 +3,49 @@ session_start();
 
 // Configuración de conexión
 $servername = "localhost";
-$username = "root";   // cámbialo si tienes otro usuario MySQL
-$password_db = "";    // cámbialo si tu MySQL tiene contraseña
-$dbname = "sistema_citas";    // usa el nombre de tu base de datos
+$username = "root";
+$password_db = "";
+$dbname = "sistema_citas";
 
-// Crear conexión
 $conn = new mysqli($servername, $username, $password_db, $dbname);
-
-// Verificar conexión
 if ($conn->connect_error) {
     die("Conexión fallida: " . $conn->connect_error);
 }
 
-// Procesar login
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = $_POST['email'];
-    $password = md5($_POST['password']);  // contraseña en MD5
+    $password = md5($_POST['password']); // Hash MD5
 
     $sql = "SELECT * FROM usuarios WHERE email='$email' AND password='$password'";
     $result = $conn->query($sql);
 
     if ($result->num_rows == 1) {
         $user = $result->fetch_assoc();
-        $_SESSION['usuario'] = $user['nombre'];
-        // Redirigir al dashboard (puedes crear dashboard.php)
-        header("Location: index1.html");
+
+        $_SESSION['usuario_id'] = $user['id'];
+        $_SESSION['usuario_nombre'] = $user['nombre'];
+        $_SESSION['rol_id'] = $user['rol_id'];
+
+        // Redirigir según el rol
+        switch ($user['rol_id']) {
+            case 1:
+                header("Location: admin_dashboard.php");
+                break;
+            case 2:
+                header("Location: doctor_dashboard.php");
+                break;
+            case 3:
+            default:
+                header("Location: index1.html");
+                break;
+        }
         exit();
     } else {
         echo "<script>alert('Correo o contraseña incorrectos'); window.history.back();</script>";
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="es">
@@ -42,6 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Citas Médicas - Login</title>
+    <link rel="icon" href="img/favicon.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {

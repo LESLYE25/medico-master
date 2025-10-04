@@ -5,16 +5,17 @@ include("conexion.php");
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $nombre   = $_POST['nombre'];
     $email    = $_POST['email'];
-    $password = md5($_POST['password']); // ⚠️ MD5 no es seguro en producción, solo para este ejemplo
-    
-    // Verificar si el correo ya existe
+    $password = md5($_POST['password']); // Hash MD5
+    $rol_id   = 3; // Rol por defecto: Paciente
+
     $check = "SELECT * FROM usuarios WHERE email='$email'";
     $result = $conn->query($check);
-    
+
     if ($result->num_rows > 0) {
-        echo "<script>alert('El correo ya está registrado. Intenta con otro.'); window.history.back();</script>";
+        echo "<script>alert('El correo ya está registrado.'); window.history.back();</script>";
     } else {
-        $sql = "INSERT INTO usuarios (nombre, email, password) VALUES ('$nombre', '$email', '$password')";
+        $sql = "INSERT INTO usuarios (nombre, email, password, rol_id) 
+                VALUES ('$nombre', '$email', '$password', '$rol_id')";
         if ($conn->query($sql) === TRUE) {
             $_SESSION['usuario'] = $nombre;
             header("Location: login.php");
@@ -25,12 +26,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Citas Médicas - Registro</title>
+  <link rel="icon" href="img/favicon.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     :root {
