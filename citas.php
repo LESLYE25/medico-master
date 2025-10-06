@@ -1,6 +1,111 @@
+<?php
+// citas.php
+session_start();
+
+// Configuración de la base de datos - AJUSTA ESTOS DATOS
+$servername = "127.0.0.1";
+$username = "root"; // Tu usuario de MySQL
+$password = ""; // Tu contraseña de MySQL
+$dbname = "sistema_citas";
+
+try {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch(PDOException $e) {
+    die("Error de conexión: " . $e->getMessage());
+}
+
+// Procesar solicitudes AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
+    
+    $action = $_POST['action'];
+    
+    switch ($action) {
+        case 'get_doctors':
+            $specialty_id = $_POST['specialty_id'] ?? '';
+            
+            if (!empty($specialty_id)) {
+                try {
+                    $stmt = $conn->prepare("SELECT id, nombre FROM medicos WHERE especialidad_id = ?");
+                    $stmt->execute([$specialty_id]);
+                    $doctors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    echo json_encode(['success' => true, 'doctors' => $doctors]);
+                } catch(PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'ID de especialidad no proporcionado']);
+            }
+            break;
+            
+        case 'get_booked_slots':
+            $doctor_id = $_POST['doctor_id'] ?? '';
+            $date = $_POST['date'] ?? '';
+            
+            if (!empty($doctor_id) && !empty($date)) {
+                try {
+                    $stmt = $conn->prepare("SELECT hora FROM citas WHERE medico_id = ? AND fecha = ?");
+                    $stmt->execute([$doctor_id, $date]);
+                    $booked_appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    $booked_slots = [];
+                    foreach ($booked_appointments as $appointment) {
+                        $time = date('H:i', strtotime($appointment['hora']));
+                        $booked_slots[] = $time;
+                    }
+                    
+                    echo json_encode(['success' => true, 'booked_slots' => $booked_slots]);
+                } catch(PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Datos insuficientes']);
+            }
+            break;
+            
+        case 'create_appointment':
+            $paciente_id = $_POST['paciente_id'] ?? '';
+            $medico_id = $_POST['medico_id'] ?? '';
+            $fecha = $_POST['fecha'] ?? '';
+            $hora = $_POST['hora'] ?? '';
+            $estado = $_POST['estado'] ?? 'pendiente';
+            $motivo = $_POST['motivo'] ?? '';
+            
+            if (!empty($paciente_id) && !empty($medico_id) && !empty($fecha) && !empty($hora)) {
+                try {
+                    // Verificar si ya existe una cita en ese horario
+                    $stmt = $conn->prepare("SELECT id FROM citas WHERE medico_id = ? AND fecha = ? AND hora = ?");
+                    $stmt->execute([$medico_id, $fecha, $hora]);
+                    
+                    if ($stmt->rowCount() > 0) {
+                        echo json_encode(['success' => false, 'message' => 'Ya existe una cita en ese horario']);
+                    } else {
+                        // Insertar la nueva cita
+                        $stmt = $conn->prepare("INSERT INTO citas (paciente_id, medico_id, fecha, hora, estado, motivo) VALUES (?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$paciente_id, $medico_id, $fecha, $hora, $estado, $motivo]);
+                        
+                        echo json_encode(['success' => true, 'message' => 'Cita agendada exitosamente']);
+                    }
+                } catch(PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Datos incompletos']);
+            }
+            break;
+            
+        default:
+            echo json_encode(['success' => false, 'message' => 'Acción no válida']);
+            break;
+    }
+    exit;
+}
+?>
+
 <!doctype html>
 <html lang="en">
-
 <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
@@ -8,27 +113,25 @@
     <title>MediReserva</title>
     <link rel="icon" href="img/favicon.png">
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 
-    <link rel="stylesheet" href="css/style.css">
-</head>
     <style>
         :root {
             --primary-color: #0065e1;
             --secondary-color: #242429;
             --accent-color: #649bff;
-            --light-color: #ffffff;   /* estaba #f9f9ff */
+            --light-color: #ffffff;
             --text-color: #666666;
-                }
+        }
         
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #ffffff;  /* ← blanco */
+            background-color: #ffffff;
             color: var(--text-color);
             line-height: 1.929;
         }
 
-        
         h1, h2, h3, h4, h5, h6 {
             font-family: 'Playfair Display', serif;
             color: var(--secondary-color);
@@ -366,6 +469,20 @@
                     <label for="specialty" class="form-label">Especialidad Médica</label>
                     <select class="form-select" id="specialty">
                         <option value="" selected disabled>Selecciona una especialidad</option>
+                        <?php
+                        try {
+                            // Obtener especialidades
+                            $stmt = $conn->prepare("SELECT * FROM especialidades");
+                            $stmt->execute();
+                            $especialidades = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            
+                            foreach ($especialidades as $especialidad) {
+                                echo "<option value='{$especialidad['id']}'>{$especialidad['nombre']}</option>";
+                            }
+                        } catch(PDOException $e) {
+                            echo "<option value=''>Error al cargar especialidades</option>";
+                        }
+                        ?>
                     </select>
                 </div>
                 <div class="col-md-6 mb-3">
@@ -469,16 +586,21 @@
                     <i class="bi bi-check-circle success-icon"></i>
                     <h3 class="text-success mb-3">¡Cita Agendada Exitosamente!</h3>
                     <p class="mb-4">Tu cita ha sido confirmada. Recibirás un correo electrónico con los detalles.</p>
-                    <button class="btn_2" id="new-appointment"><i class="bi bi-plus-circle me-2"></i> Agendar Nueva Cita</button>
+                    <div class="d-flex justify-content-center gap-3">
+                        <button class="btn_1" id="volver-dashboard" onclick="window.location.href='index1.php'">
+                            <i class="bi bi-house me-2"></i> Volver al Inicio
+                        </button>
+                        <button class="btn_2" id="new-appointment" onclick="window.location.href='index1.php'">
+                            <i class="bi bi-plus-circle me-2"></i> Volver
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    
     
     <!-- Custom JavaScript -->
     <script>
@@ -493,51 +615,12 @@
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            // Load specialties from database
-            loadSpecialties();
-            
             // Set up appointment flow
             setupAppointmentFlow();
             
             // Generate initial calendar
             generateCalendar(currentMonth, currentYear);
         });
-        
-        // Load specialties from database
-        function loadSpecialties() {
-            fetch('api.php?action=get_specialties')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const specialtySelect = document.getElementById('specialty');
-                        specialtySelect.innerHTML = '<option value="" selected disabled>Selecciona una especialidad</option>';
-                        
-                        data.specialties.forEach(specialty => {
-                            const option = document.createElement('option');
-                            option.value = specialty.id;
-                            option.textContent = specialty.nombre;
-                            specialtySelect.appendChild(option);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading specialties:', error);
-                    // Fallback to mock data if API fails
-                    const specialties = [
-                        { id: 1, nombre: 'Cardiología' },
-                        { id: 2, nombre: 'Pediatría' },
-                        { id: 3, nombre: 'Dermatología' }
-                    ];
-                    
-                    const specialtySelect = document.getElementById('specialty');
-                    specialties.forEach(specialty => {
-                        const option = document.createElement('option');
-                        option.value = specialty.id;
-                        option.textContent = specialty.nombre;
-                        specialtySelect.appendChild(option);
-                    });
-                });
-        }
         
         // Set up the appointment flow
         function setupAppointmentFlow() {
@@ -595,24 +678,31 @@
             
             // Confirm appointment
             document.getElementById('confirm-appointment').addEventListener('click', function() {
-                // Prepare appointment data - using demo user from your DB (ID 1)
+                // Prepare appointment data
                 const appointmentData = {
-                    usuario_id: 1, // Demo user from your DB
+                    paciente_id: 1, // Demo user from your DB
                     medico_id: selectedDoctor,
                     fecha: selectedDate.toISOString().split('T')[0],
                     hora: selectedTime + ':00', // Add seconds for TIME format
-                    estado: 'pendiente'
+                    estado: 'pendiente',
+                    motivo: 'Consulta general'
                 };
                 
                 console.log('Sending appointment:', appointmentData);
                 
                 // Send appointment to server
-                fetch('api.php?action=create_appointment', {
+                const formData = new FormData();
+                formData.append('action', 'create_appointment');
+                formData.append('paciente_id', appointmentData.paciente_id);
+                formData.append('medico_id', appointmentData.medico_id);
+                formData.append('fecha', appointmentData.fecha);
+                formData.append('hora', appointmentData.hora);
+                formData.append('estado', appointmentData.estado);
+                formData.append('motivo', appointmentData.motivo);
+                
+                fetch(window.location.href, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(appointmentData)
+                    body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -660,15 +750,29 @@
         function updateDoctorsList(specialtyId) {
             const doctorSelect = document.getElementById('doctor');
             doctorSelect.innerHTML = '<option value="" selected disabled>Cargando médicos...</option>';
-            doctorSelect.disabled = false;
+            doctorSelect.disabled = true;
             
             // Fetch doctors from server
-            fetch(`api.php?action=get_doctors&specialty_id=${specialtyId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        doctorSelect.innerHTML = '<option value="" selected disabled>Selecciona un médico</option>';
-                        
+            const formData = new FormData();
+            formData.append('action', 'get_doctors');
+            formData.append('specialty_id', specialtyId);
+            
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Doctors data:', data);
+                if (data.success) {
+                    doctorSelect.innerHTML = '<option value="" selected disabled>Selecciona un médico</option>';
+                    
+                    if (data.doctors && data.doctors.length > 0) {
                         data.doctors.forEach(doctor => {
                             const option = document.createElement('option');
                             option.value = doctor.id;
@@ -676,67 +780,23 @@
                             doctorSelect.appendChild(option);
                         });
                         
+                        doctorSelect.disabled = false;
                         // Show doctor cards container
                         document.getElementById('doctors-container').classList.remove('hidden');
                         updateDoctorCards();
                     } else {
-                        // Fallback to mock data if API fails
-                        const doctors = {
-                            '1': [
-                                { id: 1, name: 'Dr. García' }
-                            ],
-                            '2': [
-                                { id: 2, name: 'Dra. López' }
-                            ],
-                            '3': [
-                                { id: 3, name: 'Dr. Fernández' }
-                            ]
-                        };
-                        
-                        if (doctors[specialtyId]) {
-                            doctorSelect.innerHTML = '<option value="" selected disabled>Selecciona un médico</option>';
-                            doctors[specialtyId].forEach(doctor => {
-                                const option = document.createElement('option');
-                                option.value = doctor.id;
-                                option.textContent = doctor.name;
-                                doctorSelect.appendChild(option);
-                            });
-                            
-                            // Show doctor cards container
-                            document.getElementById('doctors-container').classList.remove('hidden');
-                            updateDoctorCards();
-                        }
+                        doctorSelect.innerHTML = '<option value="" selected disabled>No hay médicos disponibles para esta especialidad</option>';
+                        document.getElementById('doctors-container').classList.add('hidden');
                     }
-                })
-                .catch(error => {
-                    console.error('Error loading doctors:', error);
-                    // Fallback to mock data if API fails
-                    const doctors = {
-                        '1': [
-                            { id: 1, name: 'Dr. García' }
-                        ],
-                        '2': [
-                            { id: 2, name: 'Dra. López' }
-                        ],
-                        '3': [
-                            { id: 3, name: 'Dr. Fernández' }
-                        ]
-                    };
-                    
-                    if (doctors[specialtyId]) {
-                        doctorSelect.innerHTML = '<option value="" selected disabled>Selecciona un médico</option>';
-                        doctors[specialtyId].forEach(doctor => {
-                            const option = document.createElement('option');
-                            option.value = doctor.id;
-                            option.textContent = doctor.name;
-                            doctorSelect.appendChild(option);
-                        });
-                        
-                        // Show doctor cards container
-                        document.getElementById('doctors-container').classList.remove('hidden');
-                        updateDoctorCards();
-                    }
-                });
+                } else {
+                    doctorSelect.innerHTML = '<option value="" selected disabled>Error al cargar los médicos: ' + data.message + '</option>';
+                    console.error('Error from server:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading doctors:', error);
+                doctorSelect.innerHTML = '<option value="" selected disabled>Error de conexión: ' + error.message + '</option>';
+            });
         }
         
         // Update doctor cards display
@@ -746,6 +806,11 @@
             
             const doctorSelect = document.getElementById('doctor');
             const doctors = Array.from(doctorSelect.options).slice(1); // Skip the first option
+            
+            if (doctors.length === 0) {
+                container.innerHTML += '<p class="text-muted">No hay médicos disponibles</p>';
+                return;
+            }
             
             doctors.forEach(doctorOption => {
                 const doctorId = doctorOption.value;
@@ -760,14 +825,15 @@
                 
                 // Mock doctor data
                 const specialties = {
-                    '1': 'Cardiólogo con 10 años de experiencia',
+                    '1': 'Medicina General con 10 años de experiencia',
                     '2': 'Pediatra especializada en neonatología',
-                    '3': 'Dermatólogo con enfoque en estética'
+                    '3': 'Cardiólogo con enfoque en prevención',
+                    '4': 'Dermatólogo especializado en estética'
                 };
                 
                 card.innerHTML = `
                     <div class="card-body">
-                        <img src="https://via.placeholder.com/120" class="doctor-img" alt="${doctorName}">
+
                         <h5 class="card-title">${doctorName}</h5>
                         <p class="card-text text-muted">${specialties[doctorId] || 'Especialista médico'}</p>
                         <button class="btn btn-sm ${selectedDoctorId === doctorId ? 'btn-primary' : 'btn-outline-primary'} select-doctor" data-id="${doctorId}">
@@ -821,8 +887,8 @@
                 dayElement.className = 'calendar-day';
                 dayElement.textContent = day;
                 
-                // Disable past dates
-                if (date < new Date().setHours(0, 0, 0, 0)) {
+                // Disable past dates and Sundays (day 0)
+                if (date < new Date().setHours(0, 0, 0, 0) || date.getDay() === 0) {
                     dayElement.classList.add('disabled');
                 } else {
                     dayElement.addEventListener('click', function() {
@@ -866,55 +932,65 @@
             // Check for booked appointments for the selected doctor and date
             if (selectedDoctor && selectedDate) {
                 const formattedDate = selectedDate.toISOString().split('T')[0];
-                fetch(`api.php?action=get_booked_slots&doctor_id=${selectedDoctor}&date=${formattedDate}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const bookedSlots = data.success ? data.booked_slots : [];
+                
+                const formData = new FormData();
+                formData.append('action', 'get_booked_slots');
+                formData.append('doctor_id', selectedDoctor);
+                formData.append('date', formattedDate);
+                
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Booked slots data:', data);
+                    const bookedSlots = data.success ? data.booked_slots : [];
+                    
+                    availableSlots.forEach(slot => {
+                        const slotElement = document.createElement('div');
+                        slotElement.className = `time-slot ${bookedSlots.includes(slot) ? 'unavailable' : ''}`;
+                        slotElement.textContent = slot;
                         
-                        availableSlots.forEach(slot => {
-                            const slotElement = document.createElement('div');
-                            slotElement.className = `time-slot ${bookedSlots.includes(slot) ? 'unavailable' : ''}`;
-                            slotElement.textContent = slot;
-                            
-                            if (!bookedSlots.includes(slot)) {
-                                slotElement.addEventListener('click', function() {
-                                    // Remove selected class from all time slots
-                                    document.querySelectorAll('.time-slot').forEach(s => {
-                                        s.classList.remove('selected');
-                                    });
-                                    
-                                    // Add selected class to clicked time slot
-                                    this.classList.add('selected');
-                                    
-                                    // Store selected time
-                                    selectedTime = slot;
-                                    
-                                    // Enable confirmation button
-                                    document.getElementById('to-step-3').disabled = false;
-                                });
-                            }
-                            
-                            timeSlotsContainer.appendChild(slotElement);
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Error loading booked slots:', error);
-                        // If there's an error, show all slots as available
-                        availableSlots.forEach(slot => {
-                            const slotElement = document.createElement('div');
-                            slotElement.className = 'time-slot';
-                            slotElement.textContent = slot;
+                        if (!bookedSlots.includes(slot)) {
                             slotElement.addEventListener('click', function() {
+                                // Remove selected class from all time slots
                                 document.querySelectorAll('.time-slot').forEach(s => {
                                     s.classList.remove('selected');
                                 });
+                                
+                                // Add selected class to clicked time slot
                                 this.classList.add('selected');
+                                
+                                // Store selected time
                                 selectedTime = slot;
+                                
+                                // Enable confirmation button
                                 document.getElementById('to-step-3').disabled = false;
                             });
-                            timeSlotsContainer.appendChild(slotElement);
-                        });
+                        }
+                        
+                        timeSlotsContainer.appendChild(slotElement);
                     });
+                })
+                .catch(error => {
+                    console.error('Error loading booked slots:', error);
+                    // If there's an error, show all slots as available
+                    availableSlots.forEach(slot => {
+                        const slotElement = document.createElement('div');
+                        slotElement.className = 'time-slot';
+                        slotElement.textContent = slot;
+                        slotElement.addEventListener('click', function() {
+                            document.querySelectorAll('.time-slot').forEach(s => {
+                                s.classList.remove('selected');
+                            });
+                            this.classList.add('selected');
+                            selectedTime = slot;
+                            document.getElementById('to-step-3').disabled = false;
+                        });
+                        timeSlotsContainer.appendChild(slotElement);
+                    });
+                });
             }
         }
         
@@ -962,7 +1038,6 @@
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             return date.toLocaleDateString('es-ES', options);
         }
-        
     </script>
     
 </body>

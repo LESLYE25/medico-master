@@ -2349,6 +2349,15 @@ ul {
   margin-left: 65px;
 }
 
+@media (max-width: 991px) {
+  .main_menu .btn_1 {
+    margin-left: 0;
+    margin-top: 15px;
+    width: 100%;
+    text-align: center;
+  }
+}
+
 /* line 88, ../../01 cl html template/03_jun 2019/182_medico_html/sass/_menu.scss */
 .dropdown-menu {
   border: 0px solid rgba(0, 0, 0, 0.15) !important;
@@ -2654,10 +2663,20 @@ ul {
 }
 
 /* line 116, ../../01 cl html template/03_jun 2019/182_medico_html/sass/_banner.scss */
+/* MEJORA PARA RESPONSIVE */
 .banner_part .banner_text .btn_2 {
   margin-top: 50px;
 }
 
+@media (max-width: 576px) {
+  .banner_part .banner_text .btn_2 {
+    margin-top: 25px;
+    padding: 12px 30px;
+    font-size: 14px;
+    width: 100%;
+    max-width: 280px;
+  }
+}
 @media (max-width: 991px) {
   /* line 116, ../../01 cl html template/03_jun 2019/182_medico_html/sass/_banner.scss */
   .banner_part .banner_text .btn_2 {
@@ -2983,7 +3002,7 @@ ul {
 /**************** service_part css start ****************/
 /* line 2, ../../01 cl html template/03_jun 2019/182_medico_html/sass/_feature_part.scss */
 .feature_part {
-  padding: 140px 0 515px;
+  padding: 140px 0 10px;
 }
 
 @media (max-width: 991px) {
@@ -3613,6 +3632,22 @@ ul {
   font-weight: 500;
   color: #242429;
   font-size: 14px;
+}
+
+/* Ajuste responsivo para btn_2 */
+@media (max-width: 991.98px) {
+  .responsive_btn {
+    padding: 8px 20px !important;
+    font-size: 12px !important;
+    margin-top: 10px;
+    display: inline-block !important;
+    width: auto !important;
+  }
+}
+
+/* Asegura que se muestre en todos los tamaños */
+.responsive_btn {
+  display: inline-block !important;
 }
 
 /* line 118, ../../01 cl html template/03_jun 2019/182_medico_html/sass/_regervation_part.scss */
@@ -6242,11 +6277,6 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 0;
 }
 
-@media (max-width: 991px) {
-  /* line 200, ../../01 cl html template/03_jun 2019/182_medico_html/sass/_footer.scss */
-  .footer-area .copyright_part .footer-text {
-    text-align: center;
-  }
-}
+
 
 /*# sourceMappingURL=style.css.map */
