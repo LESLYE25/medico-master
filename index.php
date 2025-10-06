@@ -390,15 +390,6 @@
                 $conn->close();
                 ?>
             </div>
-            
-            <!-- Botón para ver todos los médicos -->
-            <div class="row justify-content-center mt-4">
-                <div class="col-12 text-center">
-                    <a href="login.php" class="btn btn-primary btn-lg" style="background: linear-gradient(135deg, #0065e1, #649bff); border: none; padding: 12px 30px; border-radius: 8px;">
-                        <i class="bi bi-arrow-right me-2"></i>Ver Todos Nuestros Médicos
-                    </a>
-                </div>
-            </div>
         </div>
     </section>
     <!--::doctor_part end::-->
